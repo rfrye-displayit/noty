@@ -35,6 +35,17 @@ cleanly rather than being clipped mid-word.
 
 The fan is only 56 pt wide, so the deck covers almost none of what is behind it.
 
+## Reference cards
+
+The deck also includes a built-in **Terminal** reference card. It groups a small
+set of useful macOS, network, file, process and search commands in a native,
+scrolling view. Click a command row to copy it; Noty never executes commands.
+Commands that need extra care, including `sudo`, carry a warning indicator.
+
+Reference cards share the existing fan, expanded panel, pin, Escape and
+multi-display behavior. They stay out of All Notes, Quick Capture and note
+exports because they are read-only deck items, not sticky notes.
+
 ### Two deck styles
 
 Right-click the pill → **Deck style**:

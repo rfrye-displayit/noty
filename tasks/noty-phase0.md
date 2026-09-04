@@ -48,3 +48,11 @@ No `NoteStore`, controller, or view behavior should change in Phase 1. Renaming 
 5. Add tests that create a pre-kind database with a real encrypted note, migrate and reopen it, round-trip `.reference`, and safely load an unknown raw kind as `.note`.
 
 Reference-card models, seeding, viewer UI, clipboard behavior, and deck routing remain out of Phase 1.
+
+## MVP Implementation Plan
+
+- [x] Phase 1: persist `DeckItemKind` with backward-compatible migration and round-trip tests.
+- [x] Phase 2: add structured reference content and a native scrolling viewer without changing panel mechanics.
+- [x] Phase 3: seed exactly one built-in Terminal card and keep references out of note-only library/export/editor flows.
+- [x] Phase 4: copy commands through `NSPasteboard` with transient inline confirmation and no execution path.
+- [x] Phase 5: route deck actions safely by kind, build and test, inspect the running app, then run an adversarial break pass.
