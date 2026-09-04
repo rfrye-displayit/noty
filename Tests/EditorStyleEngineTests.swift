@@ -23,6 +23,12 @@ struct EditorStyleEngineTests {
         testTextDirectionConfiguration()
         testLegacyArchiveDefaultsToAutomaticDirection()
         testTextDirectionDatabaseMigration()
+        testDeckItemKindMigrationAndPersistence()
+        testTerminalReferenceSeededOnce()
+        testTerminalSeedPreservesIDCollision()
+        testFailedLoadDoesNotSeedReferences()
+        testReferenceMutationGuards()
+        testReferenceClipboardAndSafety()
         LocalizationTests.run { check($0, $1) }
         testCustomNoteTitleBehavior()
 
@@ -193,6 +199,208 @@ struct EditorStyleEngineTests {
         } catch {
             check(false, "migration test setup failed: \(error)")
         }
+    }
+
+    private static func testDeckItemKindMigrationAndPersistence() {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("noty-kind-migration-\(UUID().uuidString)", isDirectory: true)
+        let url = directory.appendingPathComponent("notes.db")
+        do {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: directory) }
+
+            var db: OpaquePointer?
+            check(sqlite3_open(url.path, &db) == SQLITE_OK, "legacy kind database must open")
+            let schema = """
+            CREATE TABLE notes (
+              id TEXT PRIMARY KEY, title TEXT NOT NULL DEFAULT '', body BLOB NOT NULL,
+              color INTEGER NOT NULL DEFAULT 0, created REAL NOT NULL,
+              modified REAL NOT NULL, archived INTEGER NOT NULL DEFAULT 0,
+              sort_order REAL NOT NULL DEFAULT 0, pinned INTEGER NOT NULL DEFAULT 0,
+              text_direction TEXT NOT NULL DEFAULT 'automatic'
+            );
+            """
+            check(sqlite3_exec(db, schema, nil, nil, nil) == SQLITE_OK,
+                  "legacy kind schema setup must succeed")
+            let sealed = Crypto.seal("legacy body")
+            var insert: OpaquePointer?
+            check(sqlite3_prepare_v2(db,
+                                     "INSERT INTO notes (id,title,body,created,modified) VALUES ('legacy','Legacy',?,1,2);",
+                                     -1, &insert, nil) == SQLITE_OK,
+                  "legacy row insert must prepare")
+            _ = sealed.withUnsafeBytes { raw in
+                sqlite3_bind_blob(insert, 1, raw.baseAddress, Int32(sealed.count), unsafeBitCast(-1, to: sqlite3_destructor_type.self))
+            }
+            check(sqlite3_step(insert) == SQLITE_DONE, "legacy row must persist before migration")
+            sqlite3_finalize(insert)
+            sqlite3_close(db)
+
+            let migrated = Store(dbURL: url)
+            let legacy = migrated.load().first { $0.id == "legacy" }
+            check(legacy?.body == "legacy body", "kind migration must preserve and decrypt the legacy body")
+            check(legacy?.kind == .note, "legacy rows must migrate to note kind")
+
+            var reference = Note()
+            reference.id = "reference-round-trip"
+            reference.kind = .reference
+            reference.title = "Reference"
+            migrated.upsert(reference)
+            check(migrated.load().first { $0.id == reference.id }?.kind == .reference,
+                  "reference kind must round-trip through SQLite")
+
+            db = nil
+            check(sqlite3_open(url.path, &db) == SQLITE_OK, "migrated kind database must reopen")
+            check(sqlite3_exec(db, "UPDATE notes SET kind='future-kind' WHERE id='legacy';", nil, nil, nil) == SQLITE_OK,
+                  "unknown kind setup must succeed")
+            sqlite3_close(db)
+            check(migrated.load().first { $0.id == "legacy" }?.kind == .reference,
+                  "unknown persisted kinds must fail closed as read-only references")
+        } catch {
+            check(false, "kind migration test setup failed: \(error)")
+        }
+    }
+
+    private static func testTerminalReferenceSeededOnce() {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("noty-reference-seed-\(UUID().uuidString)", isDirectory: true)
+        let url = directory.appendingPathComponent("notes.db")
+        do {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: directory) }
+
+            var first: NoteStore? = NoteStore(store: Store(dbURL: url))
+            check(first?.notes.filter { $0.id == ReferenceCatalog.terminalID }.count == 1,
+                  "fresh databases must seed exactly one Terminal reference")
+            check(first?.notes.first { $0.id == ReferenceCatalog.terminalID }?.kind == .reference,
+                  "seeded Terminal item must persist as a reference")
+            first = nil
+
+            let reopened = NoteStore(store: Store(dbURL: url))
+            check(reopened.notes.filter { $0.id == ReferenceCatalog.terminalID }.count == 1,
+                  "reopening must not duplicate the Terminal reference")
+            check(reopened.notesOnly.count == 1,
+                  "the built-in reference must not enter the note-only collection")
+            let next = reopened.create()
+            check(next.color == 1,
+                  "the built-in reference must not shift the normal note color sequence")
+        } catch {
+            check(false, "Terminal seed test setup failed: \(error)")
+        }
+    }
+
+    private static func testFailedLoadDoesNotSeedReferences() {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("noty-reference-failed-load-\(UUID().uuidString)", isDirectory: true)
+        let url = directory.appendingPathComponent("notes.db")
+        do {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: directory) }
+            var db: OpaquePointer?
+            check(sqlite3_open(url.path, &db) == SQLITE_OK, "malformed database must open")
+            check(sqlite3_exec(db, "CREATE TABLE notes (id TEXT PRIMARY KEY, body BLOB NOT NULL);",
+                               nil, nil, nil) == SQLITE_OK,
+                  "malformed legacy schema setup must succeed")
+            sqlite3_close(db)
+
+            let model = NoteStore(store: Store(dbURL: url))
+            check(model.notes.isEmpty,
+                  "a failed load must not be mistaken for first launch and seed new rows")
+
+            db = nil
+            check(sqlite3_open(url.path, &db) == SQLITE_OK, "malformed database must reopen")
+            var statement: OpaquePointer?
+            check(sqlite3_prepare_v2(db, "SELECT COUNT(*) FROM notes;", -1, &statement, nil) == SQLITE_OK,
+                  "malformed database row count must prepare")
+            check(sqlite3_step(statement) == SQLITE_ROW && sqlite3_column_int(statement, 0) == 0,
+                  "failed initialization must leave the database untouched")
+            sqlite3_finalize(statement)
+            check(sqlite3_prepare_v2(db, "PRAGMA table_info(notes);", -1, &statement, nil) == SQLITE_OK,
+                  "malformed database schema inspection must prepare")
+            var columns = Set<String>()
+            while sqlite3_step(statement) == SQLITE_ROW {
+                if let raw = sqlite3_column_text(statement, 1) {
+                    columns.insert(String(cString: raw))
+                }
+            }
+            sqlite3_finalize(statement)
+            check(columns == Set(["id", "body"]),
+                  "failed initialization must not partially migrate a malformed schema")
+            sqlite3_close(db)
+        } catch {
+            check(false, "failed-load seed test setup failed: \(error)")
+        }
+    }
+
+    private static func testTerminalSeedPreservesIDCollision() {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("noty-reference-collision-\(UUID().uuidString)", isDirectory: true)
+        let url = directory.appendingPathComponent("notes.db")
+        do {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: directory) }
+            var database: Store? = Store(dbURL: url)
+            var collision = Note()
+            collision.id = ReferenceCatalog.terminalID
+            collision.body = "user content"
+            database?.upsert(collision)
+            database = nil
+
+            let model = NoteStore(store: Store(dbURL: url))
+            check(model.notes.contains { $0.id == ReferenceCatalog.terminalID
+                    && $0.kind == .note && $0.body == "user content" },
+                  "Terminal seeding must preserve a user note with the canonical ID")
+            check(model.notes.filter { $0.kind == .reference
+                    && $0.body == ReferenceCatalog.terminalKey }.count == 1,
+                  "an ID collision must still seed exactly one Terminal reference")
+        } catch {
+            check(false, "Terminal collision test setup failed: \(error)")
+        }
+    }
+
+    private static func testReferenceMutationGuards() {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("noty-reference-guards-\(UUID().uuidString)", isDirectory: true)
+        let url = directory.appendingPathComponent("notes.db")
+        do {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: directory) }
+            let model = NoteStore(store: Store(dbURL: url))
+            let id = ReferenceCatalog.terminalID
+            let original = model.note(id: id)
+            model.updateBody(id: id, body: "changed")
+            model.updateTitle(id: id, title: "changed")
+            model.setArchived(id: id, true)
+            model.cycleColor(id: id)
+            model.delete(id: id)
+            check(model.note(id: id) == original,
+                  "note-only mutation APIs must leave built-in references unchanged")
+            model.togglePin(id: id)
+            check(model.note(id: id)?.pinned == true,
+                  "references must retain the existing pin behavior")
+            check(Store(dbURL: url).load().first { $0.id == id }?.pinned == true,
+                  "reference pin changes must be verified on disk")
+        } catch {
+            check(false, "reference guard test setup failed: \(error)")
+        }
+    }
+
+    private static func testReferenceClipboardAndSafety() {
+        var copied: String?
+        check(ReferenceCatalog.copy("sudo killall coreaudiod", using: { command in
+            copied = command
+            return true
+        }),
+              "copy helper must report pasteboard success")
+        check(copied == "sudo killall coreaudiod",
+              "copy helper must write the exact command")
+        let commands = ReferenceCatalog.terminal.sections.flatMap(\.items).map(\.command)
+        check(commands.contains("sudo killall coreaudiod"),
+              "Terminal reference must include the Core Audio repair command")
+        check(!commands.contains { $0.contains("rm -rf") },
+              "Terminal defaults must exclude dangerous recursive deletion")
+        check(ReferenceCatalog.terminal.sections.flatMap(\.items)
+                .first { $0.command == "sudo killall coreaudiod" }?.needsCaution == true,
+              "sudo commands must carry a caution treatment")
     }
 
     private static func testSingleCharacterScope() {

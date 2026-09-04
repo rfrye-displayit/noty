@@ -62,7 +62,7 @@ final class QuickCapture: NSObject, NSWindowDelegate {
         if !trimmed.isEmpty {
             // Append to the chosen note — or a fresh one when none was picked,
             // or the picked one was deleted while the box sat open.
-            if let targetID, let note = NoteStore.shared.note(id: targetID) {
+            if let targetID, let note = NoteStore.shared.note(id: targetID), note.kind == .note {
                 let body = note.body.isEmpty ? trimmed : note.body + "\n" + trimmed
                 NoteStore.shared.updateBody(id: targetID, body: body)
             } else {
@@ -107,13 +107,13 @@ private struct CaptureView: View {
     @State private var targetID: String?
     @FocusState private var focused: Bool
 
-    private var targets: [Note] { Array(NoteStore.shared.active.prefix(8)) }
+    private var targets: [Note] { Array(NoteStore.shared.activeNotes.prefix(8)) }
 
     /// The paper previews the destination: the chosen note's colour, or the
     /// colour a new note would get.
     private var pal: NoteColor {
         if let targetID, let n = NoteStore.shared.note(id: targetID) { return n.palette }
-        return NoteColor.at(NoteStore.shared.notes.count % NoteColor.all.count)
+        return NoteColor.at(NoteStore.shared.notesOnly.count % NoteColor.all.count)
     }
 
     var body: some View {

@@ -56,7 +56,14 @@ struct DeckRootView: View {
 
                 // Declared last so it covers the deck, flush to the screen edge.
                 if let id = deck.state.expandedID, let note = store.note(id: id) {
-                    NoteEditorView(note: note, deck: deck, controller: controller, onRight: onRight)
+                    Group {
+                        if let card = ReferenceCatalog.card(for: note) {
+                            ReferenceCardView(item: note, card: card, deck: deck,
+                                              controller: controller, onRight: onRight)
+                        } else {
+                            NoteEditorView(note: note, deck: deck, controller: controller, onRight: onRight)
+                        }
+                    }
                         .padding(.top, editorTop(lay, id: id))
                         .transition(.modifier(
                             active: NotePull(hidden: true, onRight: onRight),
@@ -188,7 +195,7 @@ struct FanColumn: View {
             }
             .overlay(alignment: onRight ? .trailing : .leading) { spine }
 
-            if let previewNote = activePreviewNote {
+            if let previewNote = activePreviewNote, previewNote.kind == .note {
                 NotePreviewCard(note: previewNote, onRight: onRight, onHoverChanged: { inside in
                     if inside {
                         previewWork?.cancel()
@@ -320,7 +327,7 @@ struct FanColumn: View {
             // Hover-to-open makes the preview pointless — the note itself is
             // about to appear — so it wins and the card is skipped entirely.
             if deck.openOnHover { scheduleHoverOpen(note.id) }
-            else if deck.tabPreview { scheduleHoverPreview(note) }
+            else if note.kind == .note, deck.tabPreview { scheduleHoverPreview(note) }
         } else {
             cancelHoverOpen()
             cancelHoverPreview(for: note.id)
@@ -758,10 +765,12 @@ extension View {
     func noteContextMenu(_ note: Note) -> some View {
         contextMenu {
             Button(note.pinned ? L10n.text("action.unpin") : L10n.text("action.pin")) { NoteStore.shared.togglePin(id: note.id) }
-            Button(L10n.text("action.archive")) { NoteStore.shared.setArchived(id: note.id, true) }
-            Button(L10n.text("help.cycle_colour")) { NoteStore.shared.cycleColor(id: note.id) }
-            Divider()
-            Button(L10n.text("action.delete")) { NoteStore.shared.delete(id: note.id) }
+            if note.kind == .note {
+                Button(L10n.text("action.archive")) { NoteStore.shared.setArchived(id: note.id, true) }
+                Button(L10n.text("help.cycle_colour")) { NoteStore.shared.cycleColor(id: note.id) }
+                Divider()
+                Button(L10n.text("action.delete")) { NoteStore.shared.delete(id: note.id) }
+            }
         }
     }
 }

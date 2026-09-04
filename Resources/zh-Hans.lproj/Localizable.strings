@@ -202,6 +202,39 @@
 "updates.unavailable_body" = "此 Noty 构建未包含 Sparkle 框架。请运行 ./scripts/fetch-sparkle.sh 并重新构建，以启用自动更新。";
 "updates.unavailable_title" = "此构建无法使用更新功能";
 
+"reference.audio" = "音频";
+"reference.audio_restart" = "重新启动 macOS 音频";
+"reference.audio_restart_detail" = "当所有应用中的系统音频停止工作时，重新启动 Core Audio。";
+"reference.copied" = "已复制";
+"reference.copy_help" = "复制 %@";
+"reference.files" = "文件";
+"reference.files_copy" = "复制";
+"reference.files_current" = "当前目录";
+"reference.files_list" = "详细列表";
+"reference.files_mkdir" = "创建目录";
+"reference.files_move" = "移动";
+"reference.files_parent" = "上级目录";
+"reference.networking" = "网络";
+"reference.network_dns" = "DNS 查询";
+"reference.network_interfaces" = "网络接口";
+"reference.network_ping" = "测试连接";
+"reference.network_wifi_ip" = "Wi-Fi IP 地址";
+"reference.processes" = "进程";
+"reference.processes_all" = "所有进程";
+"reference.processes_kill" = "按 PID 停止";
+"reference.processes_pkill" = "按名称停止";
+"reference.processes_top" = "实时进程视图";
+"reference.search" = "搜索";
+"reference.search_file" = "查找文件";
+"reference.search_text" = "查找文本";
+"reference.system" = "系统";
+"reference.system_disk" = "磁盘空间";
+"reference.system_kernel" = "内核和硬件";
+"reference.system_uptime" = "运行时间和负载";
+"reference.system_version" = "macOS 版本";
+"reference.terminal" = "终端";
+"reference.unavailable" = "参考卡不可用";
+
 "welcome.note_body" = "欢迎使用 Noty\n\n便笺停靠在屏幕边缘。将指针移到右侧边缘，便笺栏就会展开。\n\n⌥⌘N  新建便笺\n⌥⌘A  所有便笺\n⌥⌘L  归档\n\n在便笺中：Esc 关闭，⌘F 查找，⌘. 切换颜色，⌘⌫ 删除后可在十秒内撤销。";
 
 "width.narrow" = "窄";

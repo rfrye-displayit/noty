@@ -10,7 +10,7 @@ final class NoteStore: ObservableObject {
     /// Set when a note is deleted, cleared after the 10 s undo window elapses.
     @Published var pendingUndo: PendingDelete?
 
-    private let store = Store()
+    private let store: Store
     private var undoTimer: Timer?
 
     struct PendingDelete: Equatable {
@@ -18,16 +18,21 @@ final class NoteStore: ObservableObject {
         let deadline: Date
     }
 
-    private init() {
+    init(store: Store = Store()) {
+        self.store = store
         notes = store.load()
+        guard store.isReady, store.lastLoadSucceeded else { return }
         migrateDerivedTitles()
         if notes.isEmpty { seedWelcomeNote() }
+        seedTerminalReference()
     }
 
     // MARK: Derived collections
 
     var active: [Note] { notes.filter { !$0.archived }.sorted { $0.order < $1.order } }
-    var archived: [Note] { notes.filter { $0.archived }.sorted { $0.modified > $1.modified } }
+    var activeNotes: [Note] { active.filter { $0.kind == .note } }
+    var archived: [Note] { notes.filter { $0.kind == .note && $0.archived }.sorted { $0.modified > $1.modified } }
+    var notesOnly: [Note] { notes.filter { $0.kind == .note } }
 
     func note(id: String) -> Note? { notes.first { $0.id == id } }
 
@@ -39,7 +44,7 @@ final class NoteStore: ObservableObject {
     /// not a choice anyone made; clear it once so those notes keep renaming
     /// themselves.
     private func migrateDerivedTitles() {
-        for i in notes.indices where !notes[i].title.isEmpty
+        for i in notes.indices where notes[i].kind == .note && !notes[i].title.isEmpty
             && notes[i].title == Note.derivedTitle(from: notes[i].body) {
             notes[i].title = ""
             store.upsert(notes[i])
@@ -52,7 +57,7 @@ final class NoteStore: ObservableObject {
     func create(body: String = "", title: String = "", color: Int? = nil) -> Note {
         var n = Note()
         n.order = (active.map(\.order).min() ?? 0) - 1   // newest sits at the top of the deck
-        n.color = color ?? (notes.count % NoteColor.all.count)
+        n.color = color ?? (notesOnly.count % NoteColor.all.count)
         n.body = body
         n.title = title
         notes.append(n)
@@ -61,7 +66,7 @@ final class NoteStore: ObservableObject {
     }
 
     func updateTitle(id: String, title: String) {
-        guard let i = notes.firstIndex(where: { $0.id == id }) else { return }
+        guard let i = notes.firstIndex(where: { $0.id == id }), notes[i].kind == .note else { return }
         guard notes[i].title != title else { return }
         notes[i].title = title
         notes[i].modified = Date()
@@ -69,7 +74,7 @@ final class NoteStore: ObservableObject {
     }
 
     func updateBody(id: String, body: String) {
-        guard let i = notes.firstIndex(where: { $0.id == id }) else { return }
+        guard let i = notes.firstIndex(where: { $0.id == id }), notes[i].kind == .note else { return }
         guard notes[i].body != body else { return }
         notes[i].body = body
         notes[i].modified = Date()
@@ -83,21 +88,21 @@ final class NoteStore: ObservableObject {
     }
 
     func cycleColor(id: String) {
-        guard let i = notes.firstIndex(where: { $0.id == id }) else { return }
+        guard let i = notes.firstIndex(where: { $0.id == id }), notes[i].kind == .note else { return }
         notes[i].color = (notes[i].color + 1) % NoteColor.all.count
         notes[i].modified = Date()
         store.upsert(notes[i])
     }
 
     func setColor(id: String, color: Int) {
-        guard let i = notes.firstIndex(where: { $0.id == id }) else { return }
+        guard let i = notes.firstIndex(where: { $0.id == id }), notes[i].kind == .note else { return }
         notes[i].color = color
         notes[i].modified = Date()
         store.upsert(notes[i])
     }
 
     func setTextDirection(id: String, direction: NoteTextDirection) {
-        guard let i = notes.firstIndex(where: { $0.id == id }),
+        guard let i = notes.firstIndex(where: { $0.id == id }), notes[i].kind == .note,
               notes[i].textDirection != direction else { return }
         notes[i].textDirection = direction
         notes[i].modified = Date()
@@ -105,7 +110,7 @@ final class NoteStore: ObservableObject {
     }
 
     func setArchived(id: String, _ archived: Bool) {
-        guard let i = notes.firstIndex(where: { $0.id == id }) else { return }
+        guard let i = notes.firstIndex(where: { $0.id == id }), notes[i].kind == .note else { return }
         notes[i].archived = archived
         notes[i].modified = Date()
         if !archived { notes[i].order = (active.map(\.order).min() ?? 0) - 1 }
@@ -114,7 +119,7 @@ final class NoteStore: ObservableObject {
 
     /// Removes the note but keeps it recoverable for ten seconds.
     func delete(id: String) {
-        guard let i = notes.firstIndex(where: { $0.id == id }) else { return }
+        guard let i = notes.firstIndex(where: { $0.id == id }), notes[i].kind == .note else { return }
         let doomed = notes[i]
         notes.remove(at: i)
         store.delete(id: id)
@@ -171,6 +176,7 @@ final class NoteStore: ObservableObject {
         var added = 0
         var base = (notes.map(\.order).min() ?? 0) - 1
         for var n in incoming {
+            n.kind = .note
             if notes.contains(where: { $0.id == n.id }) { n.id = UUID().uuidString }
             n.order = base
             base -= 1
@@ -183,5 +189,21 @@ final class NoteStore: ObservableObject {
 
     private func seedWelcomeNote() {
         create(body: L10n.text("welcome.note_body"), color: 0)
+    }
+
+    private func seedTerminalReference() {
+        guard !notes.contains(where: {
+            $0.kind == .reference && $0.body == ReferenceCatalog.terminalKey
+        }) else { return }
+        var item = Note()
+        item.id = notes.contains(where: { $0.id == ReferenceCatalog.terminalID })
+            ? UUID().uuidString : ReferenceCatalog.terminalID
+        item.title = ReferenceCatalog.terminal.title
+        item.body = ReferenceCatalog.terminalKey
+        item.kind = .reference
+        item.color = 4 % NoteColor.all.count
+        item.order = (active.map(\.order).min() ?? 0) - 1
+        notes.append(item)
+        store.upsert(item)
     }
 }
