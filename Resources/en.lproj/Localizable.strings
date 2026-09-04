@@ -202,6 +202,39 @@
 "updates.unavailable_body" = "This copy of Noty was built without the Sparkle framework. Run ./scripts/fetch-sparkle.sh and rebuild to enable automatic updates.";
 "updates.unavailable_title" = "Updates are not available in this build";
 
+"reference.audio" = "Audio";
+"reference.audio_restart" = "Restart macOS audio";
+"reference.audio_restart_detail" = "Restart Core Audio when system audio stops working across apps.";
+"reference.copied" = "Copied";
+"reference.copy_help" = "Copy %@";
+"reference.files" = "Files";
+"reference.files_copy" = "Copy";
+"reference.files_current" = "Current directory";
+"reference.files_list" = "Detailed listing";
+"reference.files_mkdir" = "Create directory";
+"reference.files_move" = "Move";
+"reference.files_parent" = "Parent directory";
+"reference.networking" = "Networking";
+"reference.network_dns" = "DNS lookup";
+"reference.network_interfaces" = "Network interfaces";
+"reference.network_ping" = "Test connectivity";
+"reference.network_wifi_ip" = "Wi-Fi IP address";
+"reference.processes" = "Processes";
+"reference.processes_all" = "All processes";
+"reference.processes_kill" = "Stop by PID";
+"reference.processes_pkill" = "Stop by name";
+"reference.processes_top" = "Live process view";
+"reference.search" = "Search";
+"reference.search_file" = "Find a file";
+"reference.search_text" = "Find text";
+"reference.system" = "System";
+"reference.system_disk" = "Disk space";
+"reference.system_kernel" = "Kernel and hardware";
+"reference.system_uptime" = "Uptime and load";
+"reference.system_version" = "macOS version";
+"reference.terminal" = "Terminal";
+"reference.unavailable" = "Reference unavailable";
+
 "welcome.note_body" = "Welcome to Noty\n\nYour notes live at the edge of the screen. Slide the pointer to the right edge and the deck fans out.\n\n⌥⌘N  new note\n⌥⌘A  all notes\n⌥⌘L  archive\n\nInside a note: Esc closes, ⌘F finds, ⌘. cycles the colour, ⌘⌫ deletes with ten seconds to undo.";
 
 "width.narrow" = "Narrow";

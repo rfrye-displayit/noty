@@ -129,10 +129,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Settings.launchAtLogin.toggle()
     }
 
-    @objc func exportMarkdown()  { Transfer.export(.markdown,  notes: NoteStore.shared.notes) }
-    @objc func exportPlainText() { Transfer.export(.plainText, notes: NoteStore.shared.notes) }
-    @objc func exportSingleFile(){ Transfer.export(.singleFile, notes: NoteStore.shared.notes) }
-    @objc func exportStickies()  { Transfer.export(.stickies,  notes: NoteStore.shared.notes) }
+    @objc func exportMarkdown()  { Transfer.export(.markdown,  notes: NoteStore.shared.notesOnly) }
+    @objc func exportPlainText() { Transfer.export(.plainText, notes: NoteStore.shared.notesOnly) }
+    @objc func exportSingleFile(){ Transfer.export(.singleFile, notes: NoteStore.shared.notesOnly) }
+    @objc func exportStickies()  { Transfer.export(.stickies,  notes: NoteStore.shared.notesOnly) }
     @objc func importStickies()  { Transfer.importFiles() }
 
     @objc func checkForUpdates() { Updater.shared.checkForUpdates() }

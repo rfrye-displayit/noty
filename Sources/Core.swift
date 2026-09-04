@@ -261,6 +261,11 @@ enum NoteTextDirection: String, Codable, CaseIterable, Identifiable {
     }
 }
 
+enum DeckItemKind: String, Codable {
+    case note
+    case reference
+}
+
 struct Note: Identifiable, Hashable {
     var id: String = UUID().uuidString
     var title: String = ""
@@ -272,6 +277,8 @@ struct Note: Identifiable, Hashable {
     var pinned: Bool = false
     var textDirection: NoteTextDirection = .automatic
     var order: Double = 0
+    var kind: DeckItemKind = .note
+    var referenceKey: String = ""
 
     var palette: NoteColor { NoteColor.at(color) }
 

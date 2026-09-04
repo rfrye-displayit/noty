@@ -405,9 +405,11 @@ final class DeckController: NSObject {
 
     func expand(_ id: String) {
         noteActivity()
+        model.findQuery = nil
         // Already floating somewhere on the screen — focus it there instead of
         // opening the same body in two editors.
-        if FloatingNote.shared.noteID == id {
+        if NoteStore.shared.note(id: id)?.kind == .note,
+           FloatingNote.shared.noteID == id {
             NSLog("Noty: expand \(id.prefix(6)) routed to floating note")
             FloatingNote.shared.focus(); return
         }
@@ -444,7 +446,8 @@ final class DeckController: NSObject {
     /// panel at its current on-screen position, so the paper continues under
     /// the cursor rather than jumping to it.
     func detachExpandedNote(at pointer: NSPoint) {
-        guard let id = model.state.expandedID else { return }
+        guard let id = model.state.expandedID,
+              NoteStore.shared.note(id: id)?.kind == .note else { return }
         let size = Settings.floatingNoteSize
         let frame = panel.frame
         let onRight = !Settings.deckOnLeftEdge
@@ -501,6 +504,7 @@ final class DeckController: NSObject {
                   let id = self.model.state.expandedID,
                   self.panel.isKeyWindow else { return event }
             self.noteActivity()
+            let kind = NoteStore.shared.note(id: id)?.kind
 
             // Close first: while the find bar is up it takes the key instead.
             if Settings.scClose.matches(event) {
@@ -508,28 +512,28 @@ final class DeckController: NSObject {
                 else { self.collapse() }
                 return nil
             }
-            if Settings.scArchiveNote.matches(event) {
+            if kind == .note, Settings.scArchiveNote.matches(event) {
                 NoteStore.shared.setArchived(id: id, true); self.collapse(); return nil
             }
-            if Settings.scDelete.matches(event) {
+            if kind == .note, Settings.scDelete.matches(event) {
                 NoteStore.shared.delete(id: id); self.collapse(); return nil
             }
-            if Settings.scFind.matches(event) {
+            if kind == .note, Settings.scFind.matches(event) {
                 self.model.findQuery = self.model.findQuery == nil ? "" : nil; return nil
             }
-            if Settings.scTask.matches(event) {
+            if kind == .note, Settings.scTask.matches(event) {
                 self.model.bridge.toggleTaskLine(); return nil
             }
             if Settings.scPin.matches(event) {
                 NoteStore.shared.togglePin(id: id); return nil
             }
-            if Settings.scColour.matches(event) {
+            if kind == .note, Settings.scColour.matches(event) {
                 NoteStore.shared.cycleColor(id: id); return nil
             }
-            if Settings.scBigger.matches(event) {
+            if kind == .note, Settings.scBigger.matches(event) {
                 (NSApp.delegate as? AppDelegate)?.stepFontSize(by: 1.5); return nil
             }
-            if Settings.scSmaller.matches(event) {
+            if kind == .note, Settings.scSmaller.matches(event) {
                 (NSApp.delegate as? AppDelegate)?.stepFontSize(by: -1.5); return nil
             }
             return event

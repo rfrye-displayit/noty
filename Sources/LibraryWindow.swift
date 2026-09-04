@@ -53,7 +53,7 @@ final class LibraryWindow: NSObject, NSWindowDelegate {
     }
 
     private func currentList() -> [Note] {
-        model.mode == .all ? NoteStore.shared.active : NoteStore.shared.archived
+        model.mode == .all ? NoteStore.shared.activeNotes : NoteStore.shared.archived
     }
 
     func windowWillClose(_ notification: Notification) {
@@ -69,7 +69,7 @@ struct LibraryView: View {
     @ObservedObject var model: LibraryModel
     @ObservedObject var store = NoteStore.shared
 
-    private var source: [Note] { model.mode == .all ? store.active : store.archived }
+    private var source: [Note] { model.mode == .all ? store.activeNotes : store.archived }
 
     private var filtered: [Note] {
         let q = model.query.trimmingCharacters(in: .whitespaces).lowercased()
@@ -164,16 +164,16 @@ struct LibraryView: View {
 
                 Menu {
                     Button(L10n.text("export.markdown_per_note")) {
-                        Transfer.export(.markdown, notes: NoteStore.shared.notes)
+                        Transfer.export(.markdown, notes: NoteStore.shared.notesOnly)
                     }
                     Button(L10n.text("export.plain_per_note")) {
-                        Transfer.export(.plainText, notes: NoteStore.shared.notes)
+                        Transfer.export(.plainText, notes: NoteStore.shared.notesOnly)
                     }
                     Button(L10n.text("export.single_document")) {
-                        Transfer.export(.singleFile, notes: NoteStore.shared.notes)
+                        Transfer.export(.singleFile, notes: NoteStore.shared.notesOnly)
                     }
                     Button(L10n.text("export.sticky_archive")) {
-                        Transfer.export(.stickies, notes: NoteStore.shared.notes)
+                        Transfer.export(.stickies, notes: NoteStore.shared.notesOnly)
                     }
                     Divider()
                     Button(L10n.text("menu.import")) { Transfer.importFiles() }
