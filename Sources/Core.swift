@@ -278,6 +278,7 @@ struct Note: Identifiable, Hashable {
     var textDirection: NoteTextDirection = .automatic
     var order: Double = 0
     var kind: DeckItemKind = .note
+    var referenceKey: String = ""
 
     var palette: NoteColor { NoteColor.at(color) }
 

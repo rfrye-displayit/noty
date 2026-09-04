@@ -273,11 +273,27 @@ struct EditorStyleEngineTests {
                   "fresh databases must seed exactly one Terminal reference")
             check(first?.notes.first { $0.id == ReferenceCatalog.terminalID }?.kind == .reference,
                   "seeded Terminal item must persist as a reference")
+            check(first?.notes.first { $0.id == ReferenceCatalog.terminalID }?.referenceKey
+                    == ReferenceCatalog.terminalKey,
+                  "seeded Terminal item must persist an unencrypted reference identity")
             first = nil
+
+            var database: Store? = Store(dbURL: url)
+            if var terminal = database?.load().first(where: { $0.referenceKey == ReferenceCatalog.terminalKey }) {
+                terminal.body = ""
+                terminal.title = "Stale localized title"
+                database?.upsert(terminal)
+            } else {
+                check(false, "seeded Terminal item must be available for recovery setup")
+            }
+            database = nil
 
             let reopened = NoteStore(store: Store(dbURL: url))
             check(reopened.notes.filter { $0.id == ReferenceCatalog.terminalID }.count == 1,
-                  "reopening must not duplicate the Terminal reference")
+                  "reopening after unreadable content must not duplicate the Terminal reference")
+            check(reopened.notes.first { $0.referenceKey == ReferenceCatalog.terminalKey }?.title
+                    == ReferenceCatalog.terminal.title,
+                  "reopening must refresh the persisted Terminal title for the current language")
             check(reopened.notesOnly.count == 1,
                   "the built-in reference must not enter the note-only collection")
             let next = reopened.create()

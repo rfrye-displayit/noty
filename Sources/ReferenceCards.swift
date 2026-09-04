@@ -75,7 +75,7 @@ enum ReferenceCatalog {
 
     static func card(for item: Note) -> ReferenceCard? {
         guard item.kind == .reference else { return nil }
-        if item.body == terminalKey { return terminal }
+        if item.referenceKey == terminalKey || item.body == terminalKey { return terminal }
         return ReferenceCard(id: item.id, title: item.displayTitle,
                              icon: "doc.text", sections: [])
     }

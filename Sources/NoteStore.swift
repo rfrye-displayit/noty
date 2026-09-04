@@ -192,15 +192,23 @@ final class NoteStore: ObservableObject {
     }
 
     private func seedTerminalReference() {
-        guard !notes.contains(where: {
-            $0.kind == .reference && $0.body == ReferenceCatalog.terminalKey
-        }) else { return }
+        if let existing = notes.firstIndex(where: {
+            $0.kind == .reference && ($0.referenceKey == ReferenceCatalog.terminalKey
+                || $0.id == ReferenceCatalog.terminalID
+                || $0.body == ReferenceCatalog.terminalKey)
+        }) {
+            notes[existing].referenceKey = ReferenceCatalog.terminalKey
+            notes[existing].title = ReferenceCatalog.terminal.title
+            store.upsert(notes[existing])
+            return
+        }
         var item = Note()
         item.id = notes.contains(where: { $0.id == ReferenceCatalog.terminalID })
             ? UUID().uuidString : ReferenceCatalog.terminalID
         item.title = ReferenceCatalog.terminal.title
         item.body = ReferenceCatalog.terminalKey
         item.kind = .reference
+        item.referenceKey = ReferenceCatalog.terminalKey
         item.color = 4 % NoteColor.all.count
         item.order = (active.map(\.order).min() ?? 0) - 1
         notes.append(item)

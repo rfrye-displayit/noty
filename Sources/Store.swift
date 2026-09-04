@@ -30,7 +30,8 @@ final class Store {
           sort_order REAL NOT NULL DEFAULT 0,
           pinned INTEGER NOT NULL DEFAULT 0,
           text_direction TEXT NOT NULL DEFAULT 'automatic',
-          kind TEXT NOT NULL DEFAULT 'note'
+          kind TEXT NOT NULL DEFAULT 'note',
+          reference_key TEXT NOT NULL DEFAULT ''
         );
         """)
         let migrationReady = migrate()
@@ -72,6 +73,11 @@ final class Store {
             succeeded = added && succeeded
             if added { NSLog("Noty: migrated notes table — added deck item kind") }
         }
+        if !existing.contains("reference_key") {
+            let added = exec("ALTER TABLE notes ADD COLUMN reference_key TEXT NOT NULL DEFAULT '';")
+            succeeded = added && succeeded
+            if added { NSLog("Noty: migrated notes table — added reference key") }
+        }
         return succeeded
     }
 
@@ -99,7 +105,7 @@ final class Store {
         lastLoadSucceeded = false
         var out: [Note] = []
         var st: OpaquePointer?
-        let sql = "SELECT id,title,body,color,created,modified,archived,sort_order,pinned,text_direction,kind FROM notes ORDER BY sort_order ASC;"
+        let sql = "SELECT id,title,body,color,created,modified,archived,sort_order,pinned,text_direction,kind,reference_key FROM notes ORDER BY sort_order ASC;"
         guard sqlite3_prepare_v2(db, sql, -1, &st, nil) == SQLITE_OK else { return out }
         defer { sqlite3_finalize(st) }
         var result = sqlite3_step(st)
@@ -125,6 +131,7 @@ final class Store {
             n.textDirection = rawDirection.flatMap(NoteTextDirection.init(rawValue:)) ?? .automatic
             let rawKind = sqlite3_column_text(st, 10).map { String(cString: $0) }
             n.kind = rawKind.flatMap(DeckItemKind.init(rawValue:)) ?? .reference
+            n.referenceKey = sqlite3_column_text(st, 11).map { String(cString: $0) } ?? ""
             out.append(n)
             result = sqlite3_step(st)
         }
@@ -136,13 +143,14 @@ final class Store {
 
     func upsert(_ n: Note) {
         let sql = """
-        INSERT INTO notes (id,title,body,color,created,modified,archived,sort_order,pinned,text_direction,kind)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?)
+        INSERT INTO notes (id,title,body,color,created,modified,archived,sort_order,pinned,text_direction,kind,reference_key)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
         ON CONFLICT(id) DO UPDATE SET
           title=excluded.title, body=excluded.body, color=excluded.color,
           modified=excluded.modified, archived=excluded.archived,
           sort_order=excluded.sort_order, pinned=excluded.pinned,
-          text_direction=excluded.text_direction, kind=excluded.kind;
+          text_direction=excluded.text_direction, kind=excluded.kind,
+          reference_key=excluded.reference_key;
         """
         var st: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &st, nil) == SQLITE_OK else { return }
@@ -161,6 +169,7 @@ final class Store {
         sqlite3_bind_int(st, 9, n.pinned ? 1 : 0)
         sqlite3_bind_text(st, 10, n.textDirection.rawValue, -1, SQLITE_TRANSIENT)
         sqlite3_bind_text(st, 11, n.kind.rawValue, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_text(st, 12, n.referenceKey, -1, SQLITE_TRANSIENT)
         if sqlite3_step(st) != SQLITE_DONE {
             NSLog("Noty: upsert failed — \(String(cString: sqlite3_errmsg(db)))")
         }
